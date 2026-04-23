@@ -43,13 +43,21 @@
         android:gravity="center"
         android:visibility="gone"/>
 
-    <!-- RecyclerView -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerEquipos"
+    <!-- Lista de equipos -->
+    <ScrollView
+        android:id="@+id/scrollEquipos"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:padding="8dp"/>
+        android:padding="8dp">
+
+        <LinearLayout
+            android:id="@+id/contenedorEquipos"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"/>
+
+    </ScrollView>
 
     <!-- FAB -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton

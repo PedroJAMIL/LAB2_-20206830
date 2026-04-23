@@ -2,7 +2,9 @@ package com.example.lab2;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
+import android.view.ActionMode;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -10,10 +12,9 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.example.lab2.databinding.ActivityMainBinding;
-
+import com.example.lab2.databinding.ItemEquipoBinding;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,11 +23,9 @@ public class MainActivity extends AppCompatActivity {
 
     private ActivityMainBinding binding;
 
-    // Lista principal en memoria
     public static List<Equipo> listaEquipos = new ArrayList<>();
 
     private List<Equipo> listaFiltrada = new ArrayList<>();
-    private EquipoAdapter adaptador;
 
     private String filtroTipo = "Todos";
     private String filtroEstado = "Todos";
@@ -39,8 +38,8 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        configurarRecyclerView();
         configurarSpinnersFiltro();
+        aplicarFiltros();
 
         binding.fabAgregar.setOnClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, FormActivity.class);
@@ -48,45 +47,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void configurarRecyclerView() {
-        adaptador = new EquipoAdapter(this, listaFiltrada, new EquipoAdapter.AdapterListener() {
-            @Override
-            public void onEditar(int posicion) {
-                Equipo equipoAEditar = listaFiltrada.get(posicion);
-                int indiceReal = listaEquipos.indexOf(equipoAEditar);
-                Intent intent = new Intent(MainActivity.this, FormActivity.class);
-                intent.putExtra("modo", "editar");
-                intent.putExtra("indice", indiceReal);
-                intent.putExtra("codigo", equipoAEditar.getCodigo());
-                intent.putExtra("nombre", equipoAEditar.getNombre());
-                intent.putExtra("tipo", equipoAEditar.getTipo());
-                intent.putExtra("estado", equipoAEditar.getEstado());
-                intent.putExtra("observaciones", equipoAEditar.getObservaciones());
-                startActivityForResult(intent, CODIGO_FORM);
-            }
-
-            @Override
-            public void onEliminar(int posicion) {
-                Equipo equipoAEliminar = listaFiltrada.get(posicion);
-                new AlertDialog.Builder(MainActivity.this)
-                        .setTitle("Eliminar equipo")
-                        .setMessage("¿Está seguro que desea eliminar este equipo?")
-                        .setPositiveButton("Aceptar", (dialog, which) -> {
-                            listaEquipos.remove(equipoAEliminar);
-                            aplicarFiltros();
-                        })
-                        .setNegativeButton("Cancelar", null)
-                        .show();
-            }
-        });
-
-        binding.recyclerEquipos.setLayoutManager(new LinearLayoutManager(this));
-        binding.recyclerEquipos.setAdapter(adaptador);
-        aplicarFiltros();
-    }
-
     private void configurarSpinnersFiltro() {
-        // Spinner tipo
         List<String> opcionesTipo = new ArrayList<>();
         opcionesTipo.add("Todos");
         opcionesTipo.add("Multímetro");
@@ -100,7 +61,6 @@ public class MainActivity extends AppCompatActivity {
         adaptadorTipo.setDropDownViewResource(R.layout.spinner_item);
         binding.spinnerFiltroTipo.setAdapter(adaptadorTipo);
 
-        // Spinner estado
         List<String> opcionesEstado = new ArrayList<>();
         opcionesEstado.add("Todos");
         opcionesEstado.add("Operativo");
@@ -142,15 +102,100 @@ public class MainActivity extends AppCompatActivity {
                 listaFiltrada.add(e);
             }
         }
-        adaptador.notifyDataSetChanged();
+
+        binding.contenedorEquipos.removeAllViews();
 
         if (listaFiltrada.isEmpty()) {
             binding.textSinRegistros.setVisibility(View.VISIBLE);
-            binding.recyclerEquipos.setVisibility(View.GONE);
+            binding.scrollEquipos.setVisibility(View.GONE);
         } else {
             binding.textSinRegistros.setVisibility(View.GONE);
-            binding.recyclerEquipos.setVisibility(View.VISIBLE);
+            binding.scrollEquipos.setVisibility(View.VISIBLE);
+
+            for (int i = 0; i < listaFiltrada.size(); i++) {
+                final int posicion = i;
+                Equipo equipo = listaFiltrada.get(i);
+                ItemEquipoBinding itemBinding = ItemEquipoBinding.inflate(getLayoutInflater());
+
+                itemBinding.textCodigo.setText("Código: " + equipo.getCodigo());
+                itemBinding.textNombre.setText("Nombre del equipo: " + equipo.getNombre());
+                itemBinding.textTipo.setText("Tipo de equipo: " + equipo.getTipo());
+                itemBinding.textEstado.setText("Estado: " + equipo.getEstado());
+
+                switch (equipo.getEstado()) {
+                    case "Operativo":
+                        itemBinding.textEstado.setTextColor(Color.parseColor("#2E7D32"));
+                        break;
+                    case "En mantenimiento":
+                        itemBinding.textEstado.setTextColor(Color.parseColor("#F9A825"));
+                        break;
+                    case "Fuera de servicio":
+                        itemBinding.textEstado.setTextColor(Color.parseColor("#C62828"));
+                        break;
+                    default:
+                        itemBinding.textEstado.setTextColor(Color.BLACK);
+                        break;
+                }
+
+                itemBinding.getRoot().setOnLongClickListener(v -> {
+                    startActionMode(new ActionMode.Callback() {
+                        @Override
+                        public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+                            mode.setTitle("Seleccionar acción");
+                            menu.add(0, 1, 0, "Editar");
+                            menu.add(0, 2, 1, "Eliminar");
+                            return true;
+                        }
+                        @Override
+                        public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
+                            return false;
+                        }
+                        @Override
+                        public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+                            if (item.getItemId() == 1) {
+                                editarEquipo(posicion);
+                            } else if (item.getItemId() == 2) {
+                                eliminarEquipo(posicion);
+                            }
+                            mode.finish();
+                            return true;
+                        }
+                        @Override
+                        public void onDestroyActionMode(ActionMode mode) { }
+                    });
+                    return true;
+                });
+
+                binding.contenedorEquipos.addView(itemBinding.getRoot());
+            }
         }
+    }
+
+    private void editarEquipo(int posicion) {
+        Equipo equipoAEditar = listaFiltrada.get(posicion);
+        int indiceReal = listaEquipos.indexOf(equipoAEditar);
+        Intent intent = new Intent(MainActivity.this, FormActivity.class);
+        intent.putExtra("modo", "editar");
+        intent.putExtra("indice", indiceReal);
+        intent.putExtra("codigo", equipoAEditar.getCodigo());
+        intent.putExtra("nombre", equipoAEditar.getNombre());
+        intent.putExtra("tipo", equipoAEditar.getTipo());
+        intent.putExtra("estado", equipoAEditar.getEstado());
+        intent.putExtra("observaciones", equipoAEditar.getObservaciones());
+        startActivityForResult(intent, CODIGO_FORM);
+    }
+
+    private void eliminarEquipo(int posicion) {
+        Equipo equipoAEliminar = listaFiltrada.get(posicion);
+        new AlertDialog.Builder(MainActivity.this)
+                .setTitle("Eliminar equipo")
+                .setMessage("¿Está seguro que desea eliminar este equipo?")
+                .setPositiveButton("Aceptar", (dialog, which) -> {
+                    listaEquipos.remove(equipoAEliminar);
+                    aplicarFiltros();
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
     }
 
     @Override
@@ -163,7 +208,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == 1) {
-            // Limpiar filtros
             filtroTipo = "Todos";
             filtroEstado = "Todos";
             binding.spinnerFiltroTipo.setSelection(0);
